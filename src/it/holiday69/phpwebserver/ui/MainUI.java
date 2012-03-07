@@ -11,9 +11,12 @@
 package it.holiday69.phpwebserver.ui;
 
 import it.holiday69.phpwebserver.model.Model;
-import it.holiday69.tinyutils.ExceptionUtils;
-import java.awt.Desktop;
-import java.net.URI;
+import it.holiday69.phpwebserver.utils.IconUtils;
+import it.holiday69.tinyutils.StringUtils;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Logger;
 import javax.swing.SwingUtilities;
 
@@ -25,17 +28,21 @@ public class MainUI extends javax.swing.JFrame {
 
   private final Model _model = Model.getInstance();
   private static final Logger log = Logger.getLogger(MainUI.class.getSimpleName());
+  private final List<String> _logList = new LinkedList<String>();
+  private final ExecutorService _logWindowUpdateExecutor = Executors.newSingleThreadExecutor();
   
   /** Creates new form MainUI */
   public MainUI() {
+    
+    try {
+      IconUtils.associateIcons(this, "/php-ico-32.png", "/php-ico-48.png", "/php-ico-64.png", "/php-ico-128.png", "/php-ico-256.png");
+    } catch(Throwable th) {
+      log.warning("Unable to associate icons to the MainUI window because: " + th.getMessage());
+    }
+    
     initComponents();
     
-    SwingUtilities.invokeLater(new Runnable() {
-      @Override
-      public void run() {
-        jInfoLabel.setText("<html>Web Server started at<br/> http://127.0.0.1: " + _model.configObject.httpPort + "/</html>");
-      }
-    });
+    _logWindowUpdateExecutor.submit(new LogWindowUpdater());
   }
 
   /** This method is called from within the constructor to
@@ -47,9 +54,13 @@ public class MainUI extends javax.swing.JFrame {
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
-        jOpenWebInterfaceBtn = new javax.swing.JButton();
+        jSettingsBtn = new javax.swing.JButton();
         jExitBtn = new javax.swing.JButton();
-        jInfoLabel = new javax.swing.JLabel();
+        jScrollPane1 = new javax.swing.JScrollPane();
+        jOutputTextPane = new javax.swing.JTextPane();
+        jClearTextPaneBtn = new javax.swing.JButton();
+        jRestartServerBtn = new javax.swing.JButton();
+        jLabel1 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DO_NOTHING_ON_CLOSE);
         setTitle("PhpWebServer");
@@ -59,10 +70,10 @@ public class MainUI extends javax.swing.JFrame {
             }
         });
 
-        jOpenWebInterfaceBtn.setText("Open Web Interface");
-        jOpenWebInterfaceBtn.addActionListener(new java.awt.event.ActionListener() {
+        jSettingsBtn.setText("Settings");
+        jSettingsBtn.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                jOpenWebInterfaceBtnActionPerformed(evt);
+                jSettingsBtnActionPerformed(evt);
             }
         });
 
@@ -73,63 +84,163 @@ public class MainUI extends javax.swing.JFrame {
             }
         });
 
-        jInfoLabel.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
-        jInfoLabel.setText("Web Server started at 127.0.0.1:9080");
+        jOutputTextPane.setEditable(false);
+        jOutputTextPane.setFont(new java.awt.Font("Courier New", 0, 12)); // NOI18N
+        jScrollPane1.setViewportView(jOutputTextPane);
+        jOutputTextPane.getAccessibleContext().setAccessibleDescription("text/html");
+
+        jClearTextPaneBtn.setText("Clear");
+        jClearTextPaneBtn.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jClearTextPaneBtnActionPerformed(evt);
+            }
+        });
+
+        jRestartServerBtn.setText("Restart Server");
+        jRestartServerBtn.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jRestartServerBtnActionPerformed(evt);
+            }
+        });
+
+        jLabel1.setFont(new java.awt.Font("Verdana", 3, 12)); // NOI18N
+        jLabel1.setText("Php Webserver");
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+            .addGroup(layout.createSequentialGroup()
                 .addContainerGap()
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addComponent(jInfoLabel, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, 215, Short.MAX_VALUE)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                        .addComponent(jSettingsBtn)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(jRestartServerBtn)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 496, Short.MAX_VALUE)
+                        .addComponent(jExitBtn))
+                    .addComponent(jScrollPane1)
                     .addGroup(layout.createSequentialGroup()
-                        .addComponent(jOpenWebInterfaceBtn)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 33, Short.MAX_VALUE)
-                        .addComponent(jExitBtn)))
+                        .addComponent(jLabel1)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(jClearTextPaneBtn)))
                 .addContainerGap())
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
-                .addContainerGap()
-                .addComponent(jInfoLabel, javax.swing.GroupLayout.DEFAULT_SIZE, 36, Short.MAX_VALUE)
+                .addGap(2, 2, 2)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jClearTextPaneBtn)
+                    .addComponent(jLabel1))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 328, Short.MAX_VALUE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jOpenWebInterfaceBtn)
-                    .addComponent(jExitBtn))
+                    .addComponent(jSettingsBtn)
+                    .addComponent(jExitBtn)
+                    .addComponent(jRestartServerBtn))
                 .addContainerGap())
         );
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
-  private void jOpenWebInterfaceBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jOpenWebInterfaceBtnActionPerformed
-    if (Desktop.isDesktopSupported()) {
-      Desktop desktop = Desktop.getDesktop();
-      if(desktop.isSupported(Desktop.Action.BROWSE)) {
-        try {
-            URI uri = new URI(_model.configObject.startupURL);
-            desktop.browse(uri);
-        } catch(Exception ioe) {
-            log.severe("Unable to browse to core interface because: " + ExceptionUtils.getFullExceptionInfo(ioe));
-        }
-      }
-    }
-  }//GEN-LAST:event_jOpenWebInterfaceBtnActionPerformed
+  private void jSettingsBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jSettingsBtnActionPerformed
+    
+    SettingsUI settingsWindow = new SettingsUI(this);
+    settingsWindow.setVisible(true);
+    settingsWindow.setLocationRelativeTo(null);
+  }//GEN-LAST:event_jSettingsBtnActionPerformed
 
   private void jExitBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jExitBtnActionPerformed
+    this.setEnabled(false);
     _model.notifyShutdown();
+    _logWindowUpdateExecutor.shutdownNow();
   }//GEN-LAST:event_jExitBtnActionPerformed
 
   private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
+    this.setEnabled(false);
     _model.notifyShutdown();
+    _logWindowUpdateExecutor.shutdownNow();
   }//GEN-LAST:event_formWindowClosing
 
+  private void jClearTextPaneBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jClearTextPaneBtnActionPerformed
+    _model.logQueue.clear();
+    synchronized(_logList) { _logList.clear(); }
+    SwingUtilities.invokeLater(new LogWindowUpdaterInternal(""));
+  }//GEN-LAST:event_jClearTextPaneBtnActionPerformed
+
+  private void jRestartServerBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jRestartServerBtnActionPerformed
+    _model.notifyRestart();
+  }//GEN-LAST:event_jRestartServerBtnActionPerformed
+
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton jClearTextPaneBtn;
     private javax.swing.JButton jExitBtn;
-    private javax.swing.JLabel jInfoLabel;
-    private javax.swing.JButton jOpenWebInterfaceBtn;
+    private javax.swing.JLabel jLabel1;
+    private javax.swing.JTextPane jOutputTextPane;
+    private javax.swing.JButton jRestartServerBtn;
+    private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JButton jSettingsBtn;
     // End of variables declaration//GEN-END:variables
+    
+    private class LogWindowUpdater implements Runnable {
+
+      private final Model _model = Model.getInstance();
+      
+      @Override
+      public void run() {
+        
+        while(true) {
+          
+          if(Thread.interrupted()) {
+            break;
+          }
+          
+          String message = null;
+          
+          try {
+            message = _model.logQueue.take();
+          } catch(InterruptedException ex) {
+            break;
+          }
+
+          String logString = null;
+          
+          synchronized(_logList) {
+            _logList.add(message);
+
+            while(_logList.size() > 150)
+              _logList.remove(_logList.size() -1);
+            
+            logString = StringUtils.join("<br/>", _logList.toArray(new String[_logList.size()]));
+          }
+          String newText = "<html><span style=\"font-family:'Courier New'; font-size:11\">" + logString + "</span></html>";
+
+          SwingUtilities.invokeLater(new LogWindowUpdaterInternal(newText));
+        
+        } // End infinite while
+        
+        log.info("LogWindowUpdater: closing down");
+        
+      }
+      
+    }
+    
+    private class LogWindowUpdaterInternal implements Runnable {
+
+      private String _newText;
+
+      public LogWindowUpdaterInternal(String newText) {
+        _newText = newText;
+      }
+
+      @Override
+      public void run() {
+        jOutputTextPane.setContentType("text/html");
+        jOutputTextPane.setText(_newText);
+      }
+
+    }
 }

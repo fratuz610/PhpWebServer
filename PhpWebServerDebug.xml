@@ -1,8 +1,8 @@
 <launch4jConfig>
   <dontWrapJar>false</dontWrapJar>
-  <headerType>gui</headerType>
+  <headerType>console</headerType>
   <jar>PhpWebServer.jar</jar>
-  <outfile>..\PhpWebServer.build\PhpWebServer.exe</outfile>
+  <outfile>..\PhpWebServer.build\PhpWebServerDebug.exe</outfile>
   <errTitle></errTitle>
   <cmdLine></cmdLine>
   <chdir></chdir>

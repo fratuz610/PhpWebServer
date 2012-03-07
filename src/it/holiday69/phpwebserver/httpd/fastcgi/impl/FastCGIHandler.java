@@ -117,10 +117,9 @@ public class FastCGIHandler {
 		}
 	}
 
-	private boolean handleRequest(RequestAdapter req, ResponseAdapter res,
-			Socket fcgiSocket, OutputStream out, boolean keepalive)
-			throws ServletException, IOException {
-		OutputStream ws = fcgiSocket.getOutputStream();
+	private boolean handleRequest(RequestAdapter req, ResponseAdapter res, Socket fcgiSocket, OutputStream out, boolean keepalive) throws ServletException, IOException {
+		
+    OutputStream ws = fcgiSocket.getOutputStream();
 
 		writeHeader(fcgiSocket, ws, FCGI_BEGIN_REQUEST, 8);
 

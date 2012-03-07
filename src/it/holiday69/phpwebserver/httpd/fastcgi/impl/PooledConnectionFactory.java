@@ -7,10 +7,8 @@
  */
 package it.holiday69.phpwebserver.httpd.fastcgi.impl;
 
-import java.net.Socket;
-
 import it.holiday69.phpwebserver.httpd.fastcgi.ConnectionFactory;
-
+import java.net.Socket;
 import org.apache.commons.pool.ObjectPool;
 import org.apache.commons.pool.PoolableObjectFactory;
 import org.apache.commons.pool.impl.GenericObjectPool;
@@ -25,7 +23,7 @@ import org.apache.commons.pool.impl.GenericObjectPool;
 public class PooledConnectionFactory implements ConnectionFactory {
 
 	private ObjectPool pool;
-	
+  
 	public PooledConnectionFactory(PoolableObjectFactory poolableObjectFactory)
 	{
 		this.pool = new GenericObjectPool(poolableObjectFactory);
@@ -34,14 +32,13 @@ public class PooledConnectionFactory implements ConnectionFactory {
 	/**
 	 * get a connection from the pool.
 	 */
+  @Override
 	public Socket getConnection() {
 		try
 		{
 			Socket s = (Socket)pool.borrowObject();
 			return s;
-		}
-		catch(Exception e)
-		{
+		} catch(Exception e) {
 			throw new RuntimeException(e);
 		}
 	}
@@ -50,6 +47,7 @@ public class PooledConnectionFactory implements ConnectionFactory {
 	 * returns a connection to the pool.
 	 * 
 	 */
+  @Override
 	public void releaseConnection(Socket socket) {
 		try
 		{

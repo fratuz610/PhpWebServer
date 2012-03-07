@@ -8,17 +8,19 @@ import it.holiday69.phpwebserver.httpd.fastcgi.FastCGIServlet;
 import it.holiday69.phpwebserver.httpd.fastcgi.impl.FastCGIErrorHandler;
 import it.holiday69.phpwebserver.httpd.fastcgi.impl.FastCGIHandlerFactory;
 import it.holiday69.phpwebserver.model.Model;
-import it.holiday69.phpwebserver.task.ReadConfigTask;
-import it.holiday69.phpwebserver.task.SetupUILookAndFeelTask;
-import it.holiday69.phpwebserver.task.WriteConfigTask;
+import it.holiday69.phpwebserver.task.*;
 import it.holiday69.phpwebserver.ui.MainUI;
+import it.holiday69.phpwebserver.utils.ThreadUtils;
+import it.holiday69.tinyutils.ExceptionUtils;
 import it.holiday69.tinyutils.FatalErrorUtils;
 import java.io.File;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Logger;
+import javax.servlet.DispatcherType;
 import javax.swing.SwingUtilities;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
@@ -41,7 +43,7 @@ public class Main {
   
   private final static Logger log = Logger.getLogger(Main.class.getSimpleName());
   
-  private final static ExecutorService _prebootExecutor = Executors.newSingleThreadExecutor();
+  private final static ExecutorService _backgroundExecutor = Executors.newFixedThreadPool(3);
   
   private static Server _httpServer;
   private static Model _model = Model.getInstance();
@@ -50,8 +52,13 @@ public class Main {
   private static File _phpCGIExecutable;
   private static File _phpFolder;
   private static File _wwwFolder;
+  private static ServletContextHandler _phpContext;
+  private static FastCGIServlet _fastCGIServlet;
+  private static ServletHolder _fastCGIHolder;
+  private static ResourceHandler _resourceHandler;
   
-  
+  private static MainUI _mainUI;
+ 
   public static void main(String[] args) {
     
     try {
@@ -75,111 +82,134 @@ public class Main {
       return;
     }
     
-    _wwwFolder = new File(_thisFolder, "www");
-    if(!_wwwFolder.exists())
-      _wwwFolder.mkdir();
-    
-    if(!_wwwFolder.exists()) {
-      FatalErrorUtils.showFatalError("Unable to find www folder and I cannot create it: " + _wwwFolder.getAbsolutePath());
-      return;
-    }
-    
     try {
-      _prebootExecutor.submit(new SetupUILookAndFeelTask()).get();
-      _prebootExecutor.submit(new ReadConfigTask()).get();
-      _prebootExecutor.submit(new WriteConfigTask()).get();
+      _backgroundExecutor.submit(new SetupUILookAndFeelTask()).get();
+      _backgroundExecutor.submit(new ReadConfigTask()).get();
+      _backgroundExecutor.submit(new WriteConfigTask()).get();
+      _backgroundExecutor.submit(new AddShutdownHookTask()).get();
+      _mainUI = _backgroundExecutor.submit(new ShowCreateMainUITask()).get();
     } catch(ExecutionException ex) {
       log.info("Preboot task failed: " + ex.getCause().getMessage());
     } catch(InterruptedException ex) {
       return;
     }
     
-    // shuts down the executor
-    _prebootExecutor.shutdown();
+    _model.logToScreen("Opening Main UI");
     
-    _httpServer = new Server(_model.configObject.httpPort);
-    
-    ServletContextHandler phpContext = new ServletContextHandler(ServletContextHandler.SESSIONS);
-    phpContext.setResourceBase(_wwwFolder.getAbsolutePath());
-    phpContext.setContextPath("/");
-    
-    // PHP settings
-    final FastCGIServlet fastCGIServlet = new FastCGIServlet(new FastCGIErrorHandler() {
-      @Override
-      public void logError(String errorString) {
+    while(true) {
+
+      try {
+        
+        _model.logToScreen("** Verifying configuration **");
+        
+        try {
+          _backgroundExecutor.submit(new VerifySettingsTask()).get();
+        } catch(ExecutionException ex) {
+          throw new Exception("Verification exception: " + ex.getCause().getMessage());
+        }
+        
+        _wwwFolder = new File(_model.configObject.wwwFolder);
+        
+        _model.logToScreen("Using www folder: " + _wwwFolder.getAbsolutePath());
+        _model.logToScreen("Using http port: " + _model.configObject.httpPort);
+        _model.logToScreen("Using fcgi port: " + _model.configObject.fastCGIPort);
+        
+        _httpServer = new Server(_model.configObject.httpPort);
+        
+        _phpContext = new ServletContextHandler(ServletContextHandler.SESSIONS);
+        _phpContext.setResourceBase(_wwwFolder.getAbsolutePath());
+        _phpContext.setContextPath("/");
+        _phpContext.setMaxFormContentSize(Integer.MAX_VALUE);
+
+        // PHP settings
+        _fastCGIServlet = new FastCGIServlet(new FastCGIErrorHandler() {
+          @Override
+          public void logError(String errorString) {
+            _model.logErrorToScreen(errorString);
+          }
+        });
+        
+        _fastCGIHolder = new ServletHolder(_fastCGIServlet);
+        _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_SERVER_ADDRESS, "localhost:" + _model.configObject.fastCGIPort);
+        _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE, _phpCGIExecutable.getName());
+        _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE_PATH, _phpFolder.getAbsolutePath());
+        _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE_PARAMS, "-b" + _model.configObject.fastCGIPort);
+
+        _phpContext.addServlet(_fastCGIHolder,"*.php");
+
+        // File serving settings
+        _resourceHandler = new ResourceHandler();
+        _resourceHandler.setWelcomeFiles(new String[]{ "index.php", "index.html" });
+        _resourceHandler.setResourceBase(_wwwFolder.getAbsolutePath());
+
+        // allows uploads to work
+        FilterHolder multipartFilter = new FilterHolder(MultiPartFilter.class);
+        multipartFilter.setInitParameter("maxFileSize", ""+Integer.MAX_VALUE);
+        multipartFilter.setInitParameter("maxRequestSize", ""+Integer.MAX_VALUE);
+
+        _phpContext.addFilter(multipartFilter, "/*", EnumSet.of(DispatcherType.REQUEST));
+        
+        HandlerList handlers = new HandlerList();
+        handlers.setHandlers(new Handler[] { _phpContext, _resourceHandler});
+        
+
+        // initialize both servers
+        _httpServer.setHandler(handlers);
+
+        _model.logToScreen("** Starting server **");
+        _httpServer.start();
+        _model.logToScreen("** Server started **");
+
+      } catch(InterruptedException ex) {
+        return;
+      } catch(Throwable e) {
+        _model.logErrorToScreen("Unable to start webserver because: " + ExceptionUtils.getDisplableExceptionInfo(e));
+      }
+
+      Model.getInstance().waitForEvent();
+      
+      // an event has occured, let's stop the server
+      
+      try { 
+        _httpServer.stop();
+        _phpContext.destroy();
+        _resourceHandler.destroy();
+      } catch(Throwable th) {
         
       }
-    });
-        
-    ServletHolder fastCGIHolder = new ServletHolder(fastCGIServlet);
-    fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_SERVER_ADDRESS, "localhost:" + _model.configObject.fastCGIPort);
-    fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE, _phpCGIExecutable.getName());
-    fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE_PATH, _phpFolder.getAbsolutePath());
-    fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE_PARAMS, "-b" + _model.configObject.fastCGIPort);
+      
+      if(Model.getInstance().getLastEvent() == Model.Event.RESTART) {
+         _model.logToScreen("** Restarting server **");
+        continue;
+      } else {
+        _model.logToScreen("** Closing down **");
+        break;
+      }
 
-    phpContext.addServlet(fastCGIHolder,"*.php");
-    
-    // File serving settings
-    ResourceHandler resource_handler = new ResourceHandler();
-    resource_handler.setWelcomeFiles(new String[]{ "index.php", "index.html" });
-    resource_handler.setResourceBase(_wwwFolder.getAbsolutePath());
-
-    // allows uploads to work
-    FilterHolder multipartFilter = new FilterHolder(MultiPartFilter.class);
-    multipartFilter.setInitParameter("maxFileSize", ""+Integer.MAX_VALUE);
-    multipartFilter.setInitParameter("maxRequestSize", ""+Integer.MAX_VALUE);
-        
-    HandlerList handlers = new HandlerList();
-    handlers.setHandlers(new Handler[] { phpContext, resource_handler});
-    
-    // initialize both servers
-    _httpServer.setHandler(handlers);
-    
-    try {
-      _httpServer.start();
-    } catch(Throwable th) {
-      FatalErrorUtils.showFatalError("Unable to start web server on port: " + _model.configObject.httpPort + ". Is this port already in use??");
-      return;
     }
-    
-    Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-
-      @Override
-      public void run() {
-        log.info("Shutdown hook triggered, closing down");
-        Model.getInstance().notifyShutdown();
-      }
-    }));
-
-    final MainUI mainUI = new MainUI();
-    mainUI.setVisible(true);
-    SwingUtilities.invokeLater(new Runnable() {
-      @Override
-      public void run() {
-        mainUI.setLocationRelativeTo(null);
-      }
-    });
-    
-    
-    log.info("Shutdown hook added, waiting for shutdown signal");
-    
-    Model.getInstance().waitForShutdown();
     
     log.info("Closing main window");
     
-    mainUI.dispose();
-    
-    log.info("Stopping server");
+    // shows the Main UI
     
     try {
-      _httpServer.stop();
+      _backgroundExecutor.submit(new DestroyMainUITask(_mainUI));
     } catch(Exception ex) {
-      FatalErrorUtils.showWarning("Unable to stop server because: " + ex.getMessage());
+      
     }
     
-    fastCGIServlet.destroy();
+    // shuts down the executor
+    _backgroundExecutor.shutdownNow();
     
     log.info("All done, closing down");
+    
+    try { Thread.sleep(1000); } catch(Exception e) { }
+    
+    List<Thread> threadList = ThreadUtils.getFullThreadList(false);
+    
+    for(Thread th : threadList)
+      th.interrupt();
+    
   }
   
   private static String getThisJARFolder(Class refClass) throws Exception {

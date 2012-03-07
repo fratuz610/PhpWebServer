@@ -115,7 +115,9 @@
         <delete file="${exe.dir}/${exe.jar.name}_temp.jar"/>
 
         <launch4j configFile="PhpWebServer.xml" />
-
+        <launch4j configFile="PhpWebServerDebug.xml" />
+        
         <delete file="${exe.jar}"/> 
     </target>
+    
 </project>

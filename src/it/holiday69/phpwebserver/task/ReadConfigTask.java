@@ -9,7 +9,6 @@ import it.holiday69.phpwebserver.model.Model;
 import it.holiday69.phpwebserver.vo.ConfigObject;
 import it.holiday69.tinyutils.help.IOHelper;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.util.concurrent.Callable;
 
 /**
