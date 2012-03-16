@@ -1,6 +1,9 @@
 package it.holiday69.phpwebserver.model;
 
 import it.holiday69.phpwebserver.vo.ConfigObject;
+import it.holiday69.tinyutils.TimeFormatUtils;
+import it.holiday69.tinyutils.help.Timestamp;
+import java.io.File;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -26,6 +29,14 @@ public class Model {
    *-------------------------*/
 
   public ConfigObject configObject = new ConfigObject();
+  public File phpCGIExecutable = null; 
+  
+  private String _osName = System.getProperty("os.name");
+  
+  public String getOsName() { return _osName; }
+  public boolean isMac() { return _osName.toLowerCase().indexOf("mac") != -1; }
+  public boolean isWindows() { return _osName.toLowerCase().indexOf("windows") != -1; }
+  public boolean isLinux() { return _osName.toLowerCase().indexOf("linux") != -1; }
   
   /*---------------------------
    * EVENTS
@@ -59,6 +70,24 @@ public class Model {
   
   public final LinkedBlockingQueue<String> logQueue = new LinkedBlockingQueue<String>();
   
-  public void logToScreen(String debugString) { logQueue.offer(debugString); }
-  public void logErrorToScreen(String errorString) { logQueue.offer("<span style='color:#ff0000'>" + errorString + "</span>"); }
+  public void logToScreen(String debugString) { 
+    logQueue.offer(getFormattedTS() + ": "+ debugString); 
+  }
+  public void logErrorToScreen(String errorString) { 
+    errorString = errorString.trim();
+    logQueue.offer("<span style='color:#ff0000'><b>" + getFormattedTS() + ": " + errorString + "</b></span>"); 
+  }
+  public void logHttpRequest(int code, String path) { 
+    String logReqString = "HTTP " + code + ":"+ path.trim();
+    
+    if(code > 399)
+      logErrorToScreen(logReqString);
+    else
+      logQueue.offer("<span style='color:#0000ff'>" + getFormattedTS() + ": " + logReqString + "</span>"); 
+  }
+  
+  private String getFormattedTS() {
+    return TimeFormatUtils.formatTimestamp(new Timestamp().toLong(),"HH:mm:ss:SSS");
+  }
+
 }

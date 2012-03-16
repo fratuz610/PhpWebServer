@@ -74,6 +74,17 @@
     
     <property name="launch4j.dir" location="C:\Program Files (x86)\Launch4j" />
 
+    <property name="jar-bundler.dir" location="jar-bundler" />
+
+    <taskdef name="launch4j"
+      classname="net.sf.launch4j.ant.Launch4jTask"
+      classpath="${launch4j.dir}/launch4j.jar
+          :${launch4j.dir}/lib/xstream.jar" />
+    
+    <taskdef name="jarbundler" 
+         classpath="${jar-bundler.dir}/jarbundler-2.2.0.jar"
+         classname="net.sourceforge.jarbundler.JarBundler" />
+         
     <taskdef name="launch4j"
       classname="net.sf.launch4j.ant.Launch4jTask"
       classpath="${launch4j.dir}/launch4j.jar
@@ -117,7 +128,14 @@
         <launch4j configFile="PhpWebServer.xml" />
         <launch4j configFile="PhpWebServerDebug.xml" />
         
-        <delete file="${exe.jar}"/> 
+        <copy file="${exe.jar}" toFile="../PhpWebServer.build.macosx/PhpWebServer.jar" />
+        
+        <jarbundler dir="../PhpWebServer.build.macosx"
+            name="PhpWebServer"
+            mainclass="it.holiday69.phpwebserver.Main" 
+            jar="../PhpWebServer.build.macosx/PhpWebServer.jar" />
+        
+        <delete file="${exe.jar}"/>
     </target>
     
 </project>

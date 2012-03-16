@@ -7,6 +7,10 @@
  */
 package it.holiday69.phpwebserver.httpd.fastcgi.impl;
 
+import it.holiday69.phpwebserver.core.ProcessWatchdog;
+import it.holiday69.phpwebserver.httpd.fastcgi.ConnectionFactory;
+import it.holiday69.phpwebserver.model.Model;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -15,12 +19,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Logger;
-
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletResponse;
-
-import it.holiday69.phpwebserver.httpd.fastcgi.ConnectionFactory;
 
 /**
  * 
@@ -73,10 +78,9 @@ public class FastCGIHandler {
 
 	private static final long READ_TIMEOUT = 120000;
 
-	private Process process;
-
-	private Thread processLogThread;
-
+  private ProcessWatchdog _phpProcessWatchdog;
+  private final ExecutorService _phpWatchdogExecutor = Executors.newSingleThreadExecutor();
+  
 	private boolean keepAlive = false;
 
 	public void startProcess(String executable, String paramString) throws IOException {
@@ -86,21 +90,35 @@ public class FastCGIHandler {
     execList.add(executable);
     execList.addAll(Arrays.asList(paramList));
 
+    _phpProcessWatchdog = new ProcessWatchdog(execList);
+    
     log.info("Starting php with fastcgi configuration: " + execList.toString());
-
-		ProcessBuilder pb = new ProcessBuilder(execList);
-		process = pb.start();
-	}
-
-	@Override
-	protected void finalize() throws Throwable {
-		super.finalize();
-    destroy();
+    
+    try {
+      _phpWatchdogExecutor.submit((Callable<Void>)_phpProcessWatchdog).get();
+    } catch(ExecutionException ex) {
+      log.severe("Unable to start php-cgi process ('"+execList.toString()+"') because: " + ex.getCause().getMessage());
+      Model.getInstance().logErrorToScreen("Unable to start php-cgi process ('"+execList.toString()+"') because: " + ex.getCause().getMessage());
+      return;
+    } catch(InterruptedException ex) {
+      return;
+    }
+    
+    // starts the watchdog process
+    _phpWatchdogExecutor.submit((Runnable) _phpProcessWatchdog);
 	}
 
 	public void service(RequestAdapter request, ResponseAdapter response)
 			throws ServletException, IOException {
 
+    // let's check if the requested file exists
+    File scriptFile = new File(request.getRealPath(request.getServletPath()));
+    
+    if(!scriptFile.exists() || !scriptFile.canRead()) {
+      response.sendError(404);
+      return;
+    }
+    
 		OutputStream out = response.getOutputStream();
 
 		Socket fcgiSocket = connectionFactory.getConnection();
@@ -119,6 +137,8 @@ public class FastCGIHandler {
 
 	private boolean handleRequest(RequestAdapter req, ResponseAdapter res, Socket fcgiSocket, OutputStream out, boolean keepalive) throws ServletException, IOException {
 		
+    
+    
     OutputStream ws = fcgiSocket.getOutputStream();
 
 		writeHeader(fcgiSocket, ws, FCGI_BEGIN_REQUEST, 8);
@@ -131,7 +151,7 @@ public class FastCGIHandler {
 		for (int i = 0; i < 5; i++)
 			ws.write(0);
 
-		setEnvironment(fcgiSocket, ws, req);
+    setEnvironment(fcgiSocket, ws, req);
 
 		InputStream in = req.getInputStream();
 		byte[] buf = new byte[4096];
@@ -154,12 +174,17 @@ public class FastCGIHandler {
 
 		int ch = parseHeaders(res, is);
 
-		if (ch >= 0)
-			out.write(ch);
+    try {
+      
+      if (ch >= 0)
+        out.write(ch);
 
-		while ((ch = is.read()) >= 0)
-			out.write(ch);
-
+      while ((ch = is.read()) >= 0)
+        out.write(ch);
+      
+    } catch(IOException ex) {
+      
+    }
 		return !is.isDead() && keepalive;
 	}
 
@@ -236,8 +261,7 @@ public class FastCGIHandler {
 		return cb;
 	}
 
-	private int parseHeaders(ResponseAdapter res, InputStream is)
-			throws IOException {
+	private int parseHeaders(ResponseAdapter res, InputStream is) throws IOException {
 		String key = "";
 		String value = "";
 
@@ -364,12 +388,11 @@ public class FastCGIHandler {
 	}
 
 	public void destroy() {
-		if (process != null) {
-			process.destroy();
-			process = null;
-
-      log.fine("FastCGI process destroyed");
-		}
+		
+    log.info("FastCGIHandler closing down");
+    
+    _phpWatchdogExecutor.shutdownNow();
+    
 	}
 
 	static class FastCGIInputStream extends InputStream {
@@ -492,14 +515,6 @@ public class FastCGIHandler {
 
 			return false;
 		}
-	}
-
-	public Process getProcess() {
-		return process;
-	}
-
-	public Thread getProcessLogThread() {
-		return processLogThread;
 	}
 
 	public boolean isKeepAlive() {

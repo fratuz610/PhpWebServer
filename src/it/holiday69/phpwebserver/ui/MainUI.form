@@ -96,7 +96,7 @@
           <Properties>
             <Property name="editable" type="boolean" value="false"/>
             <Property name="font" type="java.awt.Font" editor="org.netbeans.beaninfo.editors.FontEditor">
-              <Font name="Courier New" size="12" style="0"/>
+              <Font name="Courier New" size="14" style="0"/>
             </Property>
           </Properties>
           <AccessibilityProperties>
@@ -126,7 +126,7 @@
         <Property name="font" type="java.awt.Font" editor="org.netbeans.beaninfo.editors.FontEditor">
           <Font name="Verdana" size="12" style="3"/>
         </Property>
-        <Property name="text" type="java.lang.String" value="Php Webserver"/>
+        <Property name="text" type="java.lang.String" value="PhpWebserver"/>
       </Properties>
     </Component>
   </SubComponents>

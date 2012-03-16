@@ -6,6 +6,7 @@ package it.holiday69.phpwebserver.task;
 
 import it.holiday69.phpwebserver.ui.MainUI;
 import java.util.concurrent.Callable;
+import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 
 /**
@@ -14,10 +15,10 @@ import javax.swing.SwingUtilities;
  */
 public class DestroyMainUITask implements Callable<Void> {
 
-  private MainUI _mainUI;
+  private JFrame _ui;
   
-  public DestroyMainUITask(MainUI mainUI) {
-    _mainUI = mainUI;
+  public DestroyMainUITask(JFrame currentUI) {
+    _ui = currentUI;
   }
   
   @Override
@@ -26,7 +27,7 @@ public class DestroyMainUITask implements Callable<Void> {
     SwingUtilities.invokeLater(new Runnable() {
         @Override
         public void run() {
-          _mainUI.dispose();
+          _ui.dispose();
         }
       });
     return null;

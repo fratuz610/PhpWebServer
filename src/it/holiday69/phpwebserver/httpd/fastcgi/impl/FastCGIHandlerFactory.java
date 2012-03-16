@@ -70,6 +70,8 @@ public class FastCGIHandlerFactory {
       if(!path.endsWith("/"))
         path = path + "/";
 
+      path = path.replace('\\', '/');
+      
       if(!path.equals(""))
         log.info("Starting server executable from path: " +path);
 

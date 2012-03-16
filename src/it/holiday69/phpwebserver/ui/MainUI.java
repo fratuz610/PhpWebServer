@@ -85,7 +85,7 @@ public class MainUI extends javax.swing.JFrame {
         });
 
         jOutputTextPane.setEditable(false);
-        jOutputTextPane.setFont(new java.awt.Font("Courier New", 0, 12)); // NOI18N
+        jOutputTextPane.setFont(new java.awt.Font("Courier New", 0, 14)); // NOI18N
         jScrollPane1.setViewportView(jOutputTextPane);
         jOutputTextPane.getAccessibleContext().setAccessibleDescription("text/html");
 
@@ -104,7 +104,7 @@ public class MainUI extends javax.swing.JFrame {
         });
 
         jLabel1.setFont(new java.awt.Font("Verdana", 3, 12)); // NOI18N
-        jLabel1.setText("Php Webserver");
+        jLabel1.setText("PhpWebserver");
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);

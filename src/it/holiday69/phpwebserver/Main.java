@@ -7,12 +7,15 @@ package it.holiday69.phpwebserver;
 import it.holiday69.phpwebserver.httpd.fastcgi.FastCGIServlet;
 import it.holiday69.phpwebserver.httpd.fastcgi.impl.FastCGIErrorHandler;
 import it.holiday69.phpwebserver.httpd.fastcgi.impl.FastCGIHandlerFactory;
+import it.holiday69.phpwebserver.httpd.filter.ExtResourceHandler;
+import it.holiday69.phpwebserver.httpd.filter.LogErrorFilter;
 import it.holiday69.phpwebserver.model.Model;
 import it.holiday69.phpwebserver.task.*;
 import it.holiday69.phpwebserver.ui.MainUI;
 import it.holiday69.phpwebserver.utils.ThreadUtils;
 import it.holiday69.tinyutils.ExceptionUtils;
 import it.holiday69.tinyutils.FatalErrorUtils;
+import it.holiday69.tinyutils.StringUtils;
 import java.io.File;
 import java.util.EnumSet;
 import java.util.List;
@@ -21,7 +24,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Logger;
 import javax.servlet.DispatcherType;
-import javax.swing.SwingUtilities;
+import javax.swing.JFrame;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.HandlerList;
@@ -48,48 +51,38 @@ public class Main {
   private static Server _httpServer;
   private static Model _model = Model.getInstance();
   
-  private static String _thisFolder;
-  private static File _phpCGIExecutable;
-  private static File _phpFolder;
   private static File _wwwFolder;
   private static ServletContextHandler _phpContext;
   private static FastCGIServlet _fastCGIServlet;
   private static ServletHolder _fastCGIHolder;
-  private static ResourceHandler _resourceHandler;
+  private static ExtResourceHandler _resourceHandler;
   
-  private static MainUI _mainUI;
+  private static JFrame _currentUI;
  
   public static void main(String[] args) {
     
-    try {
-      _thisFolder = getThisJARFolder(Main.class);
-    } catch(Exception ex) {
-      FatalErrorUtils.showFatalError("Unable to determine the current folder:\n" + ex.getMessage());
-      return;
-    }
     
-    _phpFolder = new File(_thisFolder, "php");
-    
-    if(!_phpFolder.exists()) {
-      FatalErrorUtils.showFatalError("Unable to find php folder: " + _phpFolder.getAbsolutePath());
-      return;
-    }
-    
-    _phpCGIExecutable = new File(_phpFolder, "php-cgi.exe");
-    
-    if(!_phpCGIExecutable.exists()) {
-      FatalErrorUtils.showFatalError("Unable to find php-cgi executable: " + _phpCGIExecutable.getAbsolutePath());
-      return;
-    }
     
     try {
       _backgroundExecutor.submit(new SetupUILookAndFeelTask()).get();
       _backgroundExecutor.submit(new ReadConfigTask()).get();
+      _backgroundExecutor.submit(new FindPhpInstallationTask(Main.class)).get();
       _backgroundExecutor.submit(new WriteConfigTask()).get();
       _backgroundExecutor.submit(new AddShutdownHookTask()).get();
-      _mainUI = _backgroundExecutor.submit(new ShowCreateMainUITask()).get();
+      
+      if(StringUtils.hasContent(_model.configObject.interfaceURL) && StringUtils.hasContent(_model.configObject.interfaceTitle)) {
+        log.info("Package mode detected, showing the MINIMAL UI only");
+        _currentUI = _backgroundExecutor.submit(new ShowCreateMinimalUITask()).get();
+      } else {
+        log.info("Free mode detected, showing the MAIN UI only");
+        _currentUI = _backgroundExecutor.submit(new ShowCreateMainUITask()).get();
+      }
+      
     } catch(ExecutionException ex) {
-      log.info("Preboot task failed: " + ex.getCause().getMessage());
+      FatalErrorUtils.showFatalError("Unable to start PhpWebServer because:\n" + ExceptionUtils.getDisplableExceptionInfo(ex.getCause()));
+      log.severe("Preboot task failed: " + ExceptionUtils.getFullExceptionInfo(ex.getCause()));
+      _backgroundExecutor.shutdownNow();
+      return;
     } catch(InterruptedException ex) {
       return;
     }
@@ -125,29 +118,36 @@ public class Main {
         _fastCGIServlet = new FastCGIServlet(new FastCGIErrorHandler() {
           @Override
           public void logError(String errorString) {
-            _model.logErrorToScreen(errorString);
+            
+            String[] errorStringList = errorString.split("\n");
+            
+            for(String errorStr : errorStringList)
+              _model.logErrorToScreen(errorStr);
           }
         });
         
         _fastCGIHolder = new ServletHolder(_fastCGIServlet);
         _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_SERVER_ADDRESS, "localhost:" + _model.configObject.fastCGIPort);
-        _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE, _phpCGIExecutable.getName());
-        _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE_PATH, _phpFolder.getAbsolutePath());
+        _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE, _model.phpCGIExecutable.getName());
+        _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE_PATH, _model.phpCGIExecutable.getParent());
         _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE_PARAMS, "-b" + _model.configObject.fastCGIPort);
 
         _phpContext.addServlet(_fastCGIHolder,"*.php");
 
         // File serving settings
-        _resourceHandler = new ResourceHandler();
+        _resourceHandler = new ExtResourceHandler();
         _resourceHandler.setWelcomeFiles(new String[]{ "index.php", "index.html" });
         _resourceHandler.setResourceBase(_wwwFolder.getAbsolutePath());
-
+        
+        //_resourceHandler.addFilter(LogErrorFilter.class, "/*", EnumSet.of(DispatcherType.REQUEST));
+        
         // allows uploads to work
-        FilterHolder multipartFilter = new FilterHolder(MultiPartFilter.class);
-        multipartFilter.setInitParameter("maxFileSize", ""+Integer.MAX_VALUE);
-        multipartFilter.setInitParameter("maxRequestSize", ""+Integer.MAX_VALUE);
+        FilterHolder multipartFilterHolder = new FilterHolder(MultiPartFilter.class);
+        multipartFilterHolder.setInitParameter("maxFileSize", ""+Integer.MAX_VALUE);
+        multipartFilterHolder.setInitParameter("maxRequestSize", ""+Integer.MAX_VALUE);
 
-        _phpContext.addFilter(multipartFilter, "/*", EnumSet.of(DispatcherType.REQUEST));
+        _phpContext.addFilter(multipartFilterHolder, "/*", EnumSet.of(DispatcherType.REQUEST));
+        _phpContext.addFilter(LogErrorFilter.class, "/*", EnumSet.of(DispatcherType.REQUEST));
         
         HandlerList handlers = new HandlerList();
         handlers.setHandlers(new Handler[] { _phpContext, _resourceHandler});
@@ -163,6 +163,7 @@ public class Main {
       } catch(InterruptedException ex) {
         return;
       } catch(Throwable e) {
+        log.info("Unable to start the webserver because: " + ExceptionUtils.getFullExceptionInfo(e));
         _model.logErrorToScreen("Unable to start webserver because: " + ExceptionUtils.getDisplableExceptionInfo(e));
       }
 
@@ -193,7 +194,7 @@ public class Main {
     // shows the Main UI
     
     try {
-      _backgroundExecutor.submit(new DestroyMainUITask(_mainUI));
+      _backgroundExecutor.submit(new DestroyMainUITask(_currentUI));
     } catch(Exception ex) {
       
     }
@@ -212,24 +213,5 @@ public class Main {
     
   }
   
-  private static String getThisJARFolder(Class refClass) throws Exception {
-    
-    // get name and path
-    String name = refClass.getName().replace('.', '/');
-    name = refClass.getClass().getResource("/" + name + ".class").toString();
-    
-    // removes the head
-    if(name.indexOf("file:/") == -1)
-      throw new Exception("Internal Error: no 'file:/' section found in the current class OS path");
-    
-    name = name.substring(name.indexOf("file:/")+6);
-    
-    // removes what's after PhpWebServer etc
-    if(name.lastIndexOf("PhpWebServer") == -1)
-      throw new Exception("Internal Error: no 'PhpWebServer' section found in the current class OS path");
-    
-    name = name.substring(0, name.lastIndexOf("PhpWebServer"));
-    
-    return name;
-  }
+  
 }
