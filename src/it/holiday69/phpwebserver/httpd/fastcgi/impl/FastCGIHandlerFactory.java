@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import it.holiday69.phpwebserver.httpd.fastcgi.ConnectionFactory;
+import it.holiday69.tinyutils.ExceptionUtils;
 import java.util.logging.Logger;
 
 /**
@@ -57,7 +58,8 @@ public class FastCGIHandlerFactory {
 	
 	public static FastCGIHandler create(Map<String, String> config)
 	{
-		FastCGIHandler handler = new FastCGIHandler();
+    
+    FastCGIHandler handler = new FastCGIHandler();
 
     if(config.get(PARAM_START_EXECUTABLE) != null) {
 
@@ -66,12 +68,12 @@ public class FastCGIHandlerFactory {
       String path = "";
       if(config.get(PARAM_START_EXECUTABLE_PATH) != null)
         path= config.get(PARAM_START_EXECUTABLE_PATH);
-      
+
       if(!path.endsWith("/"))
         path = path + "/";
 
       path = path.replace('\\', '/');
-      
+
       if(!path.equals(""))
         log.info("Starting server executable from path: " +path);
 
@@ -81,7 +83,7 @@ public class FastCGIHandlerFactory {
 
       if(!path.equals(""))
         log.info("Starting server executable with param string path: " +params);
-      
+
       try {
         handler.startProcess(path + config.get(PARAM_START_EXECUTABLE), params);
       } catch(IOException ex) {
@@ -89,31 +91,32 @@ public class FastCGIHandlerFactory {
       }
     }
 
-		if(config.get(PARAM_SERVER_ADDRESS) != null)
-		{
-			log.info("configuring fastCGI handler using a single connection-based policy");
-			handler.setConnectionFactory(new SingleConnectionFactory(config.get(PARAM_SERVER_ADDRESS)));
-		}
-		else if(config.get(PARAM_CONNECTION_FACTORY) != null)
-		{
-			String className = config.get(PARAM_CONNECTION_FACTORY).trim(); 
-			log.info("configuring fastCGI handler using custom class '"+className+"'");
-			handler.setConnectionFactory(buildConnectionFactoryForClass(className));
-		}
-		else if(config.get(PARAM_CLUSTER_ADRESSES) != null)
-		{
-			PoolFactory factory = new PoolFactory();
-			log.info("configuring fastCGI handler using the following adresses : ");
-			for(String addr : config.get(PARAM_CLUSTER_ADRESSES).split(";"))
-			{
-				log.info("  => "+addr);
-				factory.addAddress(addr.trim());
-			}
-			handler.setConnectionFactory(new PooledConnectionFactory(factory));//sorry for the confusion, everything seems to be named 'factory'...
-		}
-		else throw new IllegalArgumentException("Cannot create fcgi handler : did you provide any configuration ?");
-		
-		return handler;
+    if(config.get(PARAM_SERVER_ADDRESS) != null)
+    {
+      log.info("configuring fastCGI handler using a single connection-based policy");
+      handler.setConnectionFactory(new SingleConnectionFactory(config.get(PARAM_SERVER_ADDRESS)));
+    }
+    else if(config.get(PARAM_CONNECTION_FACTORY) != null)
+    {
+      String className = config.get(PARAM_CONNECTION_FACTORY).trim(); 
+      log.info("configuring fastCGI handler using custom class '"+className+"'");
+      handler.setConnectionFactory(buildConnectionFactoryForClass(className));
+    }
+    else if(config.get(PARAM_CLUSTER_ADRESSES) != null)
+    {
+      PoolFactory factory = new PoolFactory();
+      log.info("configuring fastCGI handler using the following adresses : ");
+      for(String addr : config.get(PARAM_CLUSTER_ADRESSES).split(";"))
+      {
+        log.info("  => "+addr);
+        factory.addAddress(addr.trim());
+      }
+      handler.setConnectionFactory(new PooledConnectionFactory(factory));//sorry for the confusion, everything seems to be named 'factory'...
+    }
+    else throw new IllegalArgumentException("Cannot create fcgi handler : did you provide any configuration ?");
+
+    return handler;
+    
 	}
 	
 	private static ConnectionFactory buildConnectionFactoryForClass(String className)

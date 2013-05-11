@@ -62,9 +62,9 @@ public class FindPhpInstallationTask implements Callable<Void> {
     if(!phpCGIExecutable.exists())
       throw new Exception("Unable to find the php-cgi executable: " + phpCGIExecutable.getAbsolutePath());
     
-    log.info("Setting php cgi executable to: " + _model.phpCGIExecutable);
-    
     _model.phpCGIExecutable = phpCGIExecutable;
+    
+    log.info("Setting php cgi executable to: " + _model.phpCGIExecutable);
   }
   
   private void findPhpInstallationMac() throws Exception {

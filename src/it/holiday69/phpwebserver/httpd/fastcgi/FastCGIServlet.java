@@ -22,6 +22,7 @@ import it.holiday69.phpwebserver.httpd.fastcgi.impl.FastCGIHandler;
 import it.holiday69.phpwebserver.httpd.fastcgi.impl.FastCGIHandlerFactory;
 import it.holiday69.phpwebserver.httpd.fastcgi.impl.ServletRequestAdapter;
 import it.holiday69.phpwebserver.httpd.fastcgi.impl.ServletResponseAdapter;
+import java.util.logging.Logger;
 
 /**
  * @author jrialland
@@ -29,6 +30,8 @@ import it.holiday69.phpwebserver.httpd.fastcgi.impl.ServletResponseAdapter;
  */
 public class FastCGIServlet extends HttpServlet {
 
+  private static final Logger log = Logger.getLogger(FastCGIServlet.class.getSimpleName());
+  
 	private static final long serialVersionUID = -8597795652806478718L;
 
   private FastCGIHandler handler;
@@ -45,6 +48,7 @@ public class FastCGIServlet extends HttpServlet {
   @Override
 	public void init(ServletConfig servletConfig) throws ServletException {
 		super.init(servletConfig);
+    
 		Map<String, String> config = new TreeMap<String, String>();
 		for (String paramName : FastCGIHandlerFactory.PARAM_NAMES) {
 			String value = servletConfig.getInitParameter(paramName);
@@ -58,6 +62,9 @@ public class FastCGIServlet extends HttpServlet {
 	@Override
 	protected void service(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
+    
+    log.info("FastCGIServlet: handling request to " + request.getRequestURI());
+    
 		handler.service(new ServletRequestAdapter(request), new ServletResponseAdapter(response));
 	}
 	

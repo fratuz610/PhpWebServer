@@ -10,6 +10,7 @@ package it.holiday69.phpwebserver.httpd.fastcgi.impl;
 import it.holiday69.phpwebserver.core.ProcessWatchdog;
 import it.holiday69.phpwebserver.httpd.fastcgi.ConnectionFactory;
 import it.holiday69.phpwebserver.model.Model;
+import it.holiday69.tinyutils.ExceptionUtils;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -115,6 +116,9 @@ public class FastCGIHandler {
     File scriptFile = new File(request.getRealPath(request.getServletPath()));
     
     if(!scriptFile.exists() || !scriptFile.canRead()) {
+      
+      log.info("The requested script file: " + scriptFile + " does not exist, returning 404");
+      
       response.sendError(404);
       return;
     }
@@ -126,8 +130,13 @@ public class FastCGIHandler {
 
 		try {
 			synchronized(fcgiSocket){
-				handleRequest(request, response, fcgiSocket, out, keepAlive);
+        
+				boolean res = handleRequest(request, response, fcgiSocket, out, keepAlive);
+        
+        log.info("Handling request via fcgiSocket: " + res);
 			}
+    } catch(Throwable th) {
+      log.warning("Exception in handleRequest: " + ExceptionUtils.getFullExceptionInfo(th));
 		} finally {
 			if (fcgiSocket != null)
 				connectionFactory.releaseConnection(fcgiSocket);
@@ -137,8 +146,6 @@ public class FastCGIHandler {
 
 	private boolean handleRequest(RequestAdapter req, ResponseAdapter res, Socket fcgiSocket, OutputStream out, boolean keepalive) throws ServletException, IOException {
 		
-    
-    
     OutputStream ws = fcgiSocket.getOutputStream();
 
 		writeHeader(fcgiSocket, ws, FCGI_BEGIN_REQUEST, 8);
@@ -183,7 +190,7 @@ public class FastCGIHandler {
         out.write(ch);
       
     } catch(IOException ex) {
-      
+      log.warning("Unable to write response because: " + ExceptionUtils.getFullExceptionInfo(ex));
     }
 		return !is.isDead() && keepalive;
 	}
@@ -212,10 +219,15 @@ public class FastCGIHandler {
 			addHeader(fcgi, ws, "QUERY_STRING", "");
 
 		String scriptPath = req.getServletPath();
-		log.finer("FCGI file: " + scriptPath);
-		addHeader(fcgi, ws, "PATH_INFO", req.getContextPath() + scriptPath);
+		
+    log.info("FCGI getRealPath: " + req.getRealPath(scriptPath));
+    
+		//addHeader(fcgi, ws, "PATH_INFO", req.getContextPath() + scriptPath);
 		addHeader(fcgi, ws, "PATH_TRANSLATED", req.getRealPath(scriptPath));
 		addHeader(fcgi, ws, "SCRIPT_FILENAME", req.getRealPath(scriptPath));
+    addHeader(fcgi, ws, "SCRIPT_NAME", req.getRequestURI());
+    //addHeader(fcgi, ws, "PHP_SELF", req.getRequestURI());
+    
 		int contentLength = req.getContentLength();
 		if (contentLength < 0)
 			addHeader(fcgi, ws, "CONTENT_LENGTH", "0");
@@ -298,7 +310,7 @@ public class FastCGIHandler {
 			if (key.length() == 0)
 				return ch;
 
-			log.finer("fastcgi:" + key + ": " + value);
+			log.info("fastcgi:" + key + ": " + value);
 
 			if (key.equalsIgnoreCase("status")) {
 				int status = 0;
@@ -330,7 +342,7 @@ public class FastCGIHandler {
 		if(value != null)
 		{
 		
-      log.finer("Adding header: " + key + " => " + value);
+      log.info("Adding header: " + key + " => " + value);
 
 			int keyLen = key.length();
 			int valLen = value.length();
@@ -460,7 +472,7 @@ public class FastCGIHandler {
 							+ (_is.read() << 8) + (_is.read()));
 					int pStatus = _is.read();
 
-          log.finer(_fcgiSocket + ": FCGI_END_REQUEST(appStatus:"	+ appStatus + ", pStatus:" + pStatus + ")");
+          log.info(_fcgiSocket + ": FCGI_END_REQUEST(appStatus:"	+ appStatus + ", pStatus:" + pStatus + ")");
 					
 					if (appStatus != 0)
 						_isDead = true;
@@ -475,7 +487,7 @@ public class FastCGIHandler {
 
 				case FCGI_STDOUT:
 
-          log.finer(_fcgiSocket + ": FCGI_STDOUT(length:"+ length + ", padding:" + padding + ")");
+          log.info(_fcgiSocket + ": FCGI_STDOUT(length:"+ length + ", padding:" + padding + ")");
 					
 					if (length == 0) {
 						if (padding > 0)
@@ -490,7 +502,7 @@ public class FastCGIHandler {
 
 				case FCGI_STDERR:
 
-          log.finer(_fcgiSocket + ": FCGI_STDERR(length:" + length + ", padding:" + padding + ")");
+          log.info(_fcgiSocket + ": FCGI_STDERR(length:" + length + ", padding:" + padding + ")");
 					
 					byte[] buf = new byte[length];
 					_is.read(buf, 0, length);

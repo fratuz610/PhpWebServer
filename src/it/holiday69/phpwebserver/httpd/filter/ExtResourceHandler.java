@@ -19,11 +19,17 @@ import org.eclipse.jetty.server.handler.ResourceHandler;
  */
 public class ExtResourceHandler extends ResourceHandler {
   
+  private final Logger _log = Logger.getLogger(ExtResourceHandler.class.getSimpleName());
   private final Model _model = Model.getInstance();
   
   @Override
   public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+    
+    _log.info("Handling as a resource");
+    
     super.handle(target, baseRequest, request, response);
+    
+    _log.info("Handling as a resource: DONE -> request completed: " + baseRequest.isHandled());
     
     if(!baseRequest.isHandled())
       _model.logHttpRequest(404, request.getServletPath() + request.getPathInfo());

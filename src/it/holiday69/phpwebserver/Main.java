@@ -4,6 +4,7 @@
  */
 package it.holiday69.phpwebserver;
 
+import it.holiday69.phpwebserver.handler.MainHandler;
 import it.holiday69.phpwebserver.httpd.fastcgi.FastCGIServlet;
 import it.holiday69.phpwebserver.httpd.fastcgi.impl.FastCGIErrorHandler;
 import it.holiday69.phpwebserver.httpd.fastcgi.impl.FastCGIHandlerFactory;
@@ -11,7 +12,6 @@ import it.holiday69.phpwebserver.httpd.filter.ExtResourceHandler;
 import it.holiday69.phpwebserver.httpd.filter.LogErrorFilter;
 import it.holiday69.phpwebserver.model.Model;
 import it.holiday69.phpwebserver.task.*;
-import it.holiday69.phpwebserver.ui.MainUI;
 import it.holiday69.phpwebserver.utils.ThreadUtils;
 import it.holiday69.tinyutils.ExceptionUtils;
 import it.holiday69.tinyutils.FatalErrorUtils;
@@ -28,7 +28,6 @@ import javax.swing.JFrame;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.HandlerList;
-import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -52,10 +51,7 @@ public class Main {
   private static Model _model = Model.getInstance();
   
   private static File _wwwFolder;
-  private static ServletContextHandler _phpContext;
-  private static FastCGIServlet _fastCGIServlet;
-  private static ServletHolder _fastCGIHolder;
-  private static ExtResourceHandler _resourceHandler;
+  private static MainHandler _mainHandler;
   
   private static JFrame _currentUI;
  
@@ -109,52 +105,10 @@ public class Main {
         
         _httpServer = new Server(_model.configObject.httpPort);
         
-        _phpContext = new ServletContextHandler(ServletContextHandler.SESSIONS);
-        _phpContext.setResourceBase(_wwwFolder.getAbsolutePath());
-        _phpContext.setContextPath("/");
-        _phpContext.setMaxFormContentSize(Integer.MAX_VALUE);
-
-        // PHP settings
-        _fastCGIServlet = new FastCGIServlet(new FastCGIErrorHandler() {
-          @Override
-          public void logError(String errorString) {
-            
-            String[] errorStringList = errorString.split("\n");
-            
-            for(String errorStr : errorStringList)
-              _model.logErrorToScreen(errorStr);
-          }
-        });
+        _mainHandler = new MainHandler();
         
-        _fastCGIHolder = new ServletHolder(_fastCGIServlet);
-        _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_SERVER_ADDRESS, "localhost:" + _model.configObject.fastCGIPort);
-        _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE, _model.phpCGIExecutable.getName());
-        _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE_PATH, _model.phpCGIExecutable.getParent());
-        _fastCGIHolder.setInitParameter(FastCGIHandlerFactory.PARAM_START_EXECUTABLE_PARAMS, "-b" + _model.configObject.fastCGIPort);
-
-        _phpContext.addServlet(_fastCGIHolder,"*.php");
-
-        // File serving settings
-        _resourceHandler = new ExtResourceHandler();
-        _resourceHandler.setWelcomeFiles(new String[]{ "index.php", "index.html" });
-        _resourceHandler.setResourceBase(_wwwFolder.getAbsolutePath());
-        
-        //_resourceHandler.addFilter(LogErrorFilter.class, "/*", EnumSet.of(DispatcherType.REQUEST));
-        
-        // allows uploads to work
-        FilterHolder multipartFilterHolder = new FilterHolder(MultiPartFilter.class);
-        multipartFilterHolder.setInitParameter("maxFileSize", ""+Integer.MAX_VALUE);
-        multipartFilterHolder.setInitParameter("maxRequestSize", ""+Integer.MAX_VALUE);
-
-        _phpContext.addFilter(multipartFilterHolder, "/*", EnumSet.of(DispatcherType.REQUEST));
-        _phpContext.addFilter(LogErrorFilter.class, "/*", EnumSet.of(DispatcherType.REQUEST));
-        
-        HandlerList handlers = new HandlerList();
-        handlers.setHandlers(new Handler[] { _phpContext, _resourceHandler});
-        
-
         // initialize both servers
-        _httpServer.setHandler(handlers);
+        _httpServer.setHandler(_mainHandler);
 
         _model.logToScreen("** Starting server **");
         _httpServer.start();
@@ -173,8 +127,7 @@ public class Main {
       
       try { 
         _httpServer.stop();
-        _phpContext.destroy();
-        _resourceHandler.destroy();
+        _mainHandler.destroy();
       } catch(Throwable th) {
         
       }
@@ -211,6 +164,9 @@ public class Main {
     for(Thread th : threadList)
       th.interrupt();
     
+    try { Thread.sleep(5000); } catch(Exception e) { }
+    
+    System.exit(0);
   }
   
   
