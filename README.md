@@ -23,8 +23,8 @@ A simple php webserver with a GUI for Windows and Mac
 
 ## Screenshots
 
-[PhpWebServer Main Windows Screenshot](http://fratuz610.s3.amazonaws.com/sw/PhpWebServer/phpwebserver-screenshot-main-window.png "PhpWebServer Main Windows Screenshot")
-[PhpWebServer Settings Window Screenshot](http://fratuz610.s3.amazonaws.com/sw/PhpWebServer/phpwebserver-screenshot-settings.png "PhpWebServer Settings Window Screenshot")
+![PhpWebServer Main Windows Screenshot](http://fratuz610.s3.amazonaws.com/sw/PhpWebServer/phpwebserver-screenshot-main-window.png "PhpWebServer Main Windows Screenshot")
+![PhpWebServer Settings Window Screenshot](http://fratuz610.s3.amazonaws.com/sw/PhpWebServer/phpwebserver-screenshot-settings.png "PhpWebServer Settings Window Screenshot")
 
 ## Binaries download
 
