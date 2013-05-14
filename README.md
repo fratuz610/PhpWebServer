@@ -4,6 +4,7 @@ A simple php webserver with a GUI for Windows and Mac
 
 ## Features
 
+* Designed to facilitate development/debugging only
 * Jetty / Fastcgi based
     * Use the php version you like 
         * just replace the <build>/php folder with the version you like
@@ -12,18 +13,23 @@ A simple php webserver with a GUI for Windows and Mac
     * Change the http and fastcgi ports dynamically
     * Get the live php and http error log
 * Packaged
-    * as an EXE for Windows
+    * as an EXE for Windows using [Launch4J](http://launch4j.sourceforge.net/)
     * as an executable JAR on Mac
 
 ### TODO
 
 * PCRE mod_rewrite module
+* Better Jetty integration
+
+## Screenshots
+
+[PhpWebServer Main Windows Screenshot](http://fratuz610.s3.amazonaws.com/sw/PhpWebServer/phpwebserver-screenshot-main-window.png "PhpWebServer Main Windows Screenshot")
+[PhpWebServer Settings Window Screenshot](http://fratuz610.s3.amazonaws.com/sw/PhpWebServer/phpwebserver-screenshot-settings.png "PhpWebServer Settings Window Screenshot")
 
 ## Binaries download
 
 http://fratuz610.s3.amazonaws.com/sw/PhpWebServer/PhpWebServer-macosx.build.zip
 http://fratuz610.s3.amazonaws.com/sw/PhpWebServer/PhpWebServer-windows.build.zip
-
 
 ## Build Instructions
 
